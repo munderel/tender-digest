@@ -1,0 +1,79 @@
+# What counts as an IT / cloud tender, and how each match is sorted.
+# Tune this file, not the code. Checked against the live CanadaBuys open-notice file on 2026-09-28.
+
+[codes]
+# UNSPSC prefixes. A code match counts whatever the procurement category.
+#   8111      computer services (development, architecture, data, support)
+#   8116      IT service delivery, including cloud SaaS / PaaS / IaaS (81162xxx)
+#   80101507  information technology consultation
+#   80101508  business intelligence consulting
+#   4323      software (licence resale)
+prefixes = ["8111", "8116", "80101507", "80101508", "4323"]
+
+[keywords]
+# Matched as case-insensitive regex in the title OR the description, services notices only.
+anywhere = [
+  '\baws\b', 'amazon web services', '\bazure\b', 'google cloud', '\bgcp\b',
+  '\bsaas\b', 'software as a service', '\biaas\b', '\bpaas\b', 'devops', 'kubernetes',
+  'data (analytics|platform|warehouse|engineering|integration|migration)',
+  'business intelligence', 'power ?bi', 'tableau', '\betl\b', 'snowflake', 'databricks',
+  'artificial intelligence', 'machine learning', 'generative', 'chatbot',
+  'robotic process automation', 'software development', 'application development',
+  'web application', 'salesforce', 'dynamics 365', 'microsoft 365', 'servicenow',
+]
+# Common words that only mean IT in a title. Matched case-insensitively, title only.
+title_only = [
+  'cloud', 'managed services?', 'service desk', 'help ?desk', 'it support', 'hosting',
+  'dashboard', 'digital transformation', '\bcrm\b', 'analytics', 'automation',
+]
+# Matched case-SENSITIVELY as whole words, title or description (so French "ai" never hits).
+exact_words = ["AI", "RPA", "ETL"]
+# Drops a keyword-only match. Code matches are never dropped.
+exclude = [
+  'construction', 'janitorial', 'snow removal', 'hvac', 'roofing', 'building automation',
+  'paving', 'dredging', 'furniture', 'translation',
+]
+
+[sections]
+# Open competitions the corp can bid on today.
+open_methods = ["Competitive - Open bidding", "Competitive - Traditional", "Advance contract award notice"]
+# Notices that put a supplier ON a list.
+join_types = ["Request for Supply Arrangement", "Invitation to Qualify"]
+rfi_types = ["Request for Information"]
+# Only existing list holders can bid on these.
+holder_types = ["RFP against Supply Arrangement"]
+holder_title_words = ["TBIPS", "TSPS", "SBIPS", "ProServices"]
+closing_soon_days = 5
+
+[flags]
+# Marks a notice that probably needs a security clearance.
+clearance = [
+  'security clearance', 'reliability status', '\bsecret\b', 'designated organization screening',
+  'facility security clearance', 'document safeguarding',
+]
+
+# Supplier lists to watch. `match` is looked for in the reference number, solicitation number
+# and title. A new amendment number is reported; a list missing from the file is reported too.
+[[vehicles]]
+name = "ProServices"
+match = "E60ZT-180024"
+
+[[vehicles]]
+name = "TBIPS"
+match = "EN578-170432"
+
+[[vehicles]]
+name = "SBIPS"
+match = "EN537-05IT01"
+
+[[vehicles]]
+name = "SaaS Supply Arrangement"
+match = "EN578-191593"
+
+[[vehicles]]
+name = "AI Source List"
+match = "WS4286933967"
+
+[[vehicles]]
+name = "Software Licensing Supply Arrangement"
+match = "WS3971158100"
