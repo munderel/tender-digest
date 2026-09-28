@@ -1,0 +1,87 @@
+name: Daily tender digest
+
+# Emails new federal IT and cloud tenders every morning, then commits state/seen.json so
+# tomorrow's email only carries what is new. The email goes out even on a day with nothing
+# new: a missing email is the failure signal. A failed run also emails the log tail.
+
+on:
+  schedule:
+    - cron: '45 13 * * *'   # 13:45 UTC = 09:45 EDT / 08:45 EST, after the 07:00-08:30 ET file refresh
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the digest in the log only: send nothing, commit nothing'
+        type: boolean
+        default: false
+
+concurrency:
+  group: tender-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # commit state/seen.json
+  actions: write    # re-enable this workflow (keep-alive)
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      GMAIL_USER: ${{ secrets.GMAIL_USER }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      DIGEST_TO: ${{ secrets.DIGEST_TO }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test
+        # A bad edit to profile.toml should fail here, loudly, not send a wrong digest.
+        run: |
+          pip install -q pytest
+          python -m pytest -q
+
+      - name: Run digest
+        # `run:` executes under `bash -e`, so a trailing `[ test ] && cmd` whose test is
+        # false would red the whole run. Build the arguments in an if block instead.
+        run: |
+          set -o pipefail
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          python -m tender_digest.run $ARGS 2>&1 | tee run_log.txt
+
+      - name: Commit state
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          git config user.name "tender-digest"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/seen.json
+          if git diff --cached --quiet; then
+            echo "state unchanged"
+          else
+            git commit -q -m "state: digest $(date -u +%F)"
+            git pull -q --rebase
+            git push -q
+          fi
+
+      - name: Keep the schedule alive
+        # GitHub disables a scheduled workflow after 60 days without repository activity.
+        # The daily state commit should prevent that; re-enabling is the second belt.
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/daily.yml/enable" || echo "re-enable call failed (ignored)"
+
+      - name: Email failure alert
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python -m tender_digest.alert --log run_log.txt --run-url "$RUN_URL" || echo "alert not sent"
